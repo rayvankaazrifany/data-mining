@@ -1,0 +1,209 @@
+#Prediksi Anemia Berdasarkan Faktor Hematologi Menggunakan Algoritma Logistic Regression, Gradient Boosting, Support Vector Machine, Random Forest, dan Naïve Bayes
+#IS1
+#10522010 - Rayvanka Azrifany N
+#10522003 - Desty Nurzahra
+#10522011 - Azhira Aishara
+#10522032 - Rifa Fajar Setiadi
+
+#import
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
+
+df = pd.read_excel('Anemia Dataset.xlsx')
+df
+
+df.info()
+
+df[df.duplicated()]
+
+df.describe()
+
+# Buat figure
+fig, ax = plt.subplots(figsize=(10, 5))  # sesuaikan ukuran jika perlu
+ax.axis('off')  # sembunyikan axis
+
+# Buat table dari DataFrame
+table = ax.table(cellText=df.describe().round(2).values,
+                 colLabels=df.describe().columns,
+                 rowLabels=df.describe().index,
+                 loc='center',
+                 cellLoc='center')
+
+table.scale(1, 1.5)  # atur skala jika perlu
+table.auto_set_font_size(False)
+table.set_fontsize(10)
+
+plt.title("Statistik Deskriptif", fontsize=14, pad=20)
+plt.tight_layout()
+plt.show()
+
+print("Jumlah data duplikat", df.duplicated().sum())
+
+df = df.drop_duplicates()
+df.shape
+
+columns = df.columns
+
+num_var = len(columns)
+n_cols = 4
+n_rows = -(-num_var // n_cols)
+
+fig, axes = plt.subplots(n_rows, ncols=4, figsize=(15, n_rows * 4))
+axes = axes.flatten()
+
+for i, columns in enumerate(columns):
+  sns.boxplot(x=df[columns], ax=axes[i])
+  axes[i].set_title(f"Boxplot {columns}")
+
+for j in range(i+1, len(axes)):
+  fig.delaxes(axes[j])
+
+plt.tight_layout()
+plt.show()
+
+numeric_cols = df.select_dtypes(include='number').columns
+
+Q1 = df[numeric_cols].quantile(0.25)
+Q3 = df[numeric_cols].quantile(0.75)
+IQR = Q3 - Q1
+
+filter_outliers = ~((df[numeric_cols] < (Q1 - 1.5 * IQR)) |
+                    (df[numeric_cols] > (Q3 + 1.5 * IQR))).any(axis=1)
+
+df = df[filter_outliers]
+df.shape
+
+df.hist(bins=50, figsize=(10,8))
+plt.show()
+
+count = df['Gender'].value_counts()
+percent = 100*df['Gender'].value_counts(normalize=True)
+df_gender = pd.DataFrame({'jumlah sampel':count, 'persentase':percent.round(1)})
+print(df_gender)
+count.plot(kind='bar', title='Gender');
+
+sns.pairplot(df, diag_kind = 'kde')
+
+numerical_columns = df.select_dtypes(include=['int64', 'float64']).columns
+plt.figure(figsize=(10, 8))
+correlation_matrix = df[numerical_columns].corr().round(2)
+
+sns.heatmap(data=correlation_matrix, annot=True, cmap='coolwarm', linewidths=0.5)
+plt.title('Correlation Matrix Heatmap')
+
+df.drop(columns=['MCV'], inplace=True, axis=1)
+df.drop(columns=['PCV'], inplace=True, axis=1)
+
+df.columns
+
+df['Gender'] = LabelEncoder().fit_transform(df['Gender'])
+df['Gender'].head(5)
+
+x = df.drop(columns=['Decision_Class'], axis=1)
+y = df['Decision_Class']
+X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+
+print(f'Total dataset keseluruhan: {len(x)}')
+print(f'Total dataset Train: {len(X_train)}')
+print(f'Total dataset test: {len(X_test)}')
+
+numerical_columns = ['Age',	'Hb',	'RBC',	'MCH',	'MCHC']
+
+scaler = StandardScaler()
+scaler.fit(X_train[numerical_columns])
+
+X_train[numerical_columns] = scaler.transform(X_train[numerical_columns])
+X_train[numerical_columns].head()
+
+models = pd.DataFrame(index=['accuracy_train', 'accuracy_test'],
+                      columns=['LR', 'Boosting', 'SVM', 'RF', 'NB'])
+
+# Logistic Regression
+lr = LogisticRegression(random_state=42)
+lr.fit(X_train, y_train)
+models.loc['accuracy_train', 'LR'] = accuracy_score(y_train, lr.predict(X_train))
+models.loc['accuracy_test', 'LR'] = accuracy_score(y_test, lr.predict(X_test))
+
+# Gradient Boosting
+gbc = GradientBoostingClassifier(random_state=42)
+gbc.fit(X_train, y_train)
+models.loc['accuracy_train', 'Boosting'] = accuracy_score(y_train, gbc.predict(X_train))
+models.loc['accuracy_test', 'Boosting'] = accuracy_score(y_test, gbc.predict(X_test))
+
+# Support Vector Machine
+svm = SVC(kernel='rbf', C=1.0, gamma='scale', random_state=42)
+svm.fit(X_train, y_train)
+models.loc['accuracy_train', 'SVM'] = accuracy_score(y_train, svm.predict(X_train))
+models.loc['accuracy_test', 'SVM'] = accuracy_score(y_test, svm.predict(X_test))
+
+# Random Forest
+rf = RandomForestClassifier(random_state=42)
+rf.fit(X_train, y_train)
+models.loc['accuracy_train', 'RF'] = accuracy_score(y_train, rf.predict(X_train))
+models.loc['accuracy_test', 'RF'] = accuracy_score(y_test, rf.predict(X_test))
+
+# Naive Bayes
+nb = GaussianNB()
+nb.fit(X_train, y_train)
+models.loc['accuracy_train', 'NB'] = accuracy_score(y_train, nb.predict(X_train))
+models.loc['accuracy_test', 'NB'] = accuracy_score(y_test, nb.predict(X_test))
+
+X_test[numerical_columns] = scaler.transform(X_test[numerical_columns])
+
+metrics = ['accuracy', 'precision', 'recall', 'f1_score']
+sets = ['train', 'test']
+columns = [f"{s}_{m}" for s in sets for m in metrics]
+results = pd.DataFrame(index=['LR', 'Boosting', 'SVM', 'RF', 'NB'], columns=columns)
+
+model_dict = {
+    'LR'       : lr,
+    'Boosting' : gbc,
+    'SVM'      : svm,
+    'RF'       : rf,
+    'NB'       : nb
+}
+
+for name, model in model_dict.items():
+
+    # Prediksi
+    y_pred_train = model.predict(X_train)
+    y_pred_test  = model.predict(X_test)
+
+    # Train metrics
+    results.loc[name, 'train_accuracy']  = accuracy_score(y_train, y_pred_train)
+    results.loc[name, 'train_precision'] = precision_score(y_train, y_pred_train, zero_division=0)
+    results.loc[name, 'train_recall']    = recall_score(y_train, y_pred_train, zero_division=0)
+    results.loc[name, 'train_f1_score']  = f1_score(y_train, y_pred_train, zero_division=0)
+
+    # Test metrics
+    results.loc[name, 'test_accuracy']   = accuracy_score(y_test, y_pred_test)
+    results.loc[name, 'test_precision']  = precision_score(y_test, y_pred_test, zero_division=0)
+    results.loc[name, 'test_recall']     = recall_score(y_test, y_pred_test, zero_division=0)
+    results.loc[name, 'test_f1_score']   = f1_score(y_test, y_pred_test, zero_division=0)
+
+# Tampilkan hasil dengan pembulatan 3 digit
+print(results.astype(float).round(3))
+
+fig, axes = plt.subplots(1, len(model_dict), figsize=(5*len(model_dict),5))
+for ax, (name, model) in zip(axes, model_dict.items()):
+    cm = confusion_matrix(y_test, model.predict(X_test))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False, ax=ax)
+    ax.set_title(f'{name}')
+    ax.set_xlabel('Predicted')
+    ax.set_ylabel('Actual')
+plt.tight_layout()
+plt.show()
+
+fig, ax = plt.subplots()
+results.sort_values(by='test_accuracy', ascending=True)[['test_accuracy', 'train_accuracy']].plot(kind='barh', ax=ax, zorder=5)
+ax.grid(zorder=0)
+
